@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141A2B">
+<title>12月4日 上海 → 京都</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  color-scheme: light;
+  --sorairo:#DCE4E6;
+  --hatoba:#6E6372;
+  --night:#141A2B;
+  --ink:#1F2328;
+  --ink-soft:#4A5058;
+  --paper:#EDE8DF;
+  --nioi:#C8452E;
+  --kincha:#C8913C;
+  --mincho:"Hiragino Mincho ProN","Yu Mincho","Songti SC","Noto Serif JP",serif;
+  --sans:"PingFang SC","Hiragino Sans","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  font-family:var(--sans);
+  color:var(--ink);
+  background:var(--night);
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+/* 全篇由昼入夜：对应 12:30 落地 → 19:30 东寺点灯 */
+.scroll{
+  background:linear-gradient(
+    to bottom,
+    var(--sorairo) 0%,
+    #C9CDD4 16%,
+    #9A93A4 30%,
+    var(--hatoba) 41%,
+    #43415A 50%,
+    #23263C 58%,
+    var(--night) 65%,
+    #0E1322 100%
+  );
+}
+.wrap{max-width:52rem;margin:0 auto;padding:0 1.5rem}
+
+/* ---------- 扉页 ---------- */
+.hero{padding:4.5rem 0 2rem}
+.hero .date{
+  font-family:var(--mincho);
+  font-size:clamp(3.2rem,13vw,5.6rem);
+  line-height:.95;
+  letter-spacing:.02em;
+  margin:0;
+  font-weight:500;
+}
+.hero .dow{
+  font-family:var(--mincho);
+  font-size:clamp(1rem,3.4vw,1.3rem);
+  color:var(--ink-soft);
+  margin:.4rem 0 1.6rem;
+}
+.hero .route{
+  font-family:var(--mincho);
+  font-size:clamp(1.3rem,5vw,2rem);
+  margin:0 0 .6rem;
+  font-weight:400;
+}
+.hero .gist{
+  max-width:34rem;
+  color:var(--ink-soft);
+  font-size:.98rem;
+  margin:0;
+}
+/* ---------- 倒计时 / 实时条 ---------- */
+.strip{
+  position:sticky;top:0;z-index:40;
+  background:rgba(31,35,40,.9);
+  backdrop-filter:blur(10px);
+  color:var(--paper);
+  font-size:.82rem;
+  padding:.5rem 1.5rem;
+  display:flex;align-items:center;gap:.75rem;
+  border-bottom:1px solid rgba(237,232,223,.14);
+}
+.strip b{font-weight:600;color:var(--kincha)}
+.strip button{
+  margin-left:auto;
+  font:inherit;
+  background:none;
+  color:var(--paper);
+  border:1px solid rgba(237,232,223,.4);
+  border-radius:2px;
+  padding:.16rem .6rem;
+  cursor:pointer;
+}
+.strip button:hover{background:rgba(237,232,223,.12)}
+.strip button:focus-visible{outline:2px solid var(--kincha);outline-offset:2px}
+
+/* ---------- 地图 ---------- */
+.maps{display:grid;gap:1rem;margin:2.5rem 0 1rem}
+@media(min-width:40rem){.maps{grid-template-columns:1fr 1fr}}
+.map{
+  background:rgba(237,232,223,.5);
+  border:1px solid rgba(31,35,40,.16);
+  border-radius:3px;
+  padding:.7rem .7rem .4rem;
+}
+.map h3{
+  font-family:var(--mincho);
+  font-size:.88rem;font-weight:500;
+  margin:0 0 .45rem;color:var(--ink-soft);
+}
+.map svg{width:100%;height:auto;display:block}
+.pin{cursor:pointer}
+.pin circle{transition:r .18s,fill .18s}
+.pin.on circle.dot{r:7;fill:var(--nioi)}
+.pin text{font-size:9px;font-family:var(--sans);fill:var(--ink)}
+.pin.on text{font-weight:700;fill:var(--nioi)}
+
+/* ---------- Leaflet 真实地图 ---------- */
+.livewrap{margin:2.5rem 0 1rem}
+.livehead{
+  display:flex;align-items:baseline;gap:.75rem;
+  flex-wrap:wrap;margin-bottom:.5rem;
+}
+.livehead h3{
+  font-family:var(--mincho);font-size:.95rem;font-weight:500;
+  margin:0;color:var(--ink-soft);
+}
+.views{display:flex;gap:.35rem;margin-left:auto}
+.views button{
+  font:inherit;font-size:.78rem;
+  background:none;color:var(--ink-soft);
+  border:1px solid rgba(31,35,40,.3);
+  border-radius:2px;padding:.12rem .55rem;cursor:pointer;
+}
+.views button[aria-pressed="true"]{
+  background:var(--nioi);color:var(--paper);border-color:var(--nioi);
+}
+.views button:focus-visible{outline:2px solid var(--kincha);outline-offset:2px}
+#map{
+  height:clamp(17rem,52vw,24rem);
+  border:1px solid rgba(200,145,60,.4);
+  border-radius:3px;
+  background:#1A2033;
+}
+.leaflet-container{font-family:var(--sans);background:#1A2033}
+.leaflet-popup-content-wrapper{
+  background:#20263A;color:var(--paper);
+  border-radius:3px;box-shadow:none;
+  border:1px solid rgba(200,145,60,.45);
+}
+.leaflet-popup-tip{background:#20263A;border:1px solid rgba(200,145,60,.45)}
+.leaflet-popup-content{margin:.6rem .8rem;font-size:.85rem;line-height:1.6}
+.leaflet-popup-content b{
+  font-family:var(--mincho);font-size:.98rem;font-weight:500;
+  display:block;margin-bottom:.1rem;
+}
+.leaflet-popup-content .t{color:var(--kincha);font-size:.78rem}
+.leaflet-popup-content a{color:#E8A05C}
+.leaflet-popup-close-button{color:rgba(237,232,223,.6)!important}
+.leaflet-bar a{background:#20263A;color:var(--paper);border-color:rgba(237,232,223,.2)}
+.leaflet-bar a:hover{background:#2A3148}
+.leaflet-control-attribution{
+  background:rgba(20,26,43,.82)!important;
+  color:rgba(237,232,223,.5)!important;font-size:.62rem;
+}
+.leaflet-control-attribution a{color:rgba(237,232,223,.72)!important}
+/* 丹色编号标记 */
+.mk{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--nioi);color:#fff;
+  font:600 11px/22px var(--sans);text-align:center;
+  border:1.5px solid rgba(237,232,223,.85);
+  box-shadow:0 1px 4px rgba(0,0,0,.45);
+}
+.mk.alt{background:var(--hatoba);border-style:dashed}
+.mk.on{background:var(--kincha);transform:scale(1.25)}
+.fallback{font-size:.82rem;color:var(--ink-soft);margin:.5rem 0 0}
+.fallback summary{cursor:pointer}
+
+/* ---------- 时间线 ---------- */
+.line{position:relative;padding:1rem 0 0}
+.stop{
+  position:relative;
+  display:grid;
+  grid-template-columns:3.6rem 1fr;
+  gap:1.5rem;
+  padding:0 0 1.9rem;
+}
+.stop .clock{
+  font-family:var(--mincho);
+  font-size:1.02rem;
+  text-align:right;
+  padding-top:.08rem;
+  letter-spacing:-.01em;
+}
+.stop .clock small{display:block;font-size:.72rem;opacity:.6;font-family:var(--sans)}
+/* 节点：实心丹色=你在某处停留，空心=你在移动中 */
+.stop::before{
+  content:"";position:absolute;left:4.35rem;top:.55rem;
+  width:11px;height:11px;margin-left:-5.5px;
+  border-radius:50%;
+  background:var(--nioi);
+  z-index:2;
+}
+.stop.move::before{
+  background:transparent;
+  border:1.5px solid currentColor;
+  opacity:.8;
+}
+/* 连接线：由本条目向下延伸到下一个节点。移动段画虚线 */
+.stop::after{
+  content:"";position:absolute;left:4.35rem;
+  top:1.35rem;bottom:-.2rem;
+  width:0;margin-left:-.5px;
+  border-left:1px solid currentColor;
+  opacity:.32;
+}
+.stop.move::after{border-left-style:dashed;opacity:.5}
+.stop.end::after{display:none}
+.stop.move .seg{opacity:.92}
+.stop h2{
+  font-family:var(--mincho);
+  font-size:1.22rem;font-weight:500;
+  margin:0 0 .25rem;line-height:1.35;
+}
+.stop.move h2{font-size:1rem;font-weight:400;opacity:.88}
+.stop p{margin:.3rem 0 0;font-size:.93rem;max-width:36rem}
+.stop .meta{
+  font-size:.8rem;opacity:.72;margin-top:.3rem;
+  display:flex;flex-wrap:wrap;gap:.1rem .9rem;
+}
+.stop a.nav{
+  display:inline-block;margin-top:.5rem;
+  font-size:.82rem;
+  color:inherit;
+  border-bottom:1px solid var(--nioi);
+  text-decoration:none;
+  padding-bottom:1px;
+}
+.stop a.nav:hover{border-bottom-width:2px}
+
+/* 昼夜分段的文字颜色 */
+.seg-day{color:var(--ink)}
+.seg-dusk{color:#2C2838}
+.seg-night{color:var(--paper)}
+.seg-night .map{
+  background:rgba(237,232,223,.1);
+  border-color:rgba(237,232,223,.2);
+}
+
+/* 高亮：五重塔那一刻 */
+.peak{
+  background:radial-gradient(120% 90% at 22% 32%,rgba(200,145,60,.2),transparent 62%);
+  border:1px solid rgba(200,145,60,.42);
+  border-radius:3px;
+  padding:1.1rem 1.2rem;
+  margin:.65rem 0 0;
+}
+.peak svg{width:100%;max-width:17rem;height:auto;display:block;margin:0 auto .5rem}
+.peak p{opacity:.9}
+
+/* ---------- 提示块 ---------- */
+.notes{padding:0 0 4rem;color:var(--paper)}
+.notes h2{
+  font-family:var(--mincho);font-weight:500;
+  font-size:1.5rem;margin:0 0 1.2rem;
+}
+.note{
+  border-top:1px solid rgba(237,232,223,.22);
+  padding:1rem 0;
+  display:grid;gap:.2rem 1.4rem;
+}
+@media(min-width:34rem){.note{grid-template-columns:8.5rem 1fr}}
+.note dt{font-family:var(--mincho);font-size:1rem}
+.note dd{margin:0;font-size:.9rem;opacity:.82}
+.note dd b{color:var(--kincha);font-weight:600}
+.alert{
+  margin-top:1.6rem;
+  border:1px solid rgba(200,69,46,.55);
+  border-left:3px solid var(--nioi);
+  border-radius:2px;
+  padding:.9rem 1.1rem;
+  font-size:.9rem;
+  background:rgba(200,69,46,.1);
+}
+.alert b{color:#E8836D}
+footer{
+  color:rgba(237,232,223,.45);
+  font-size:.78rem;
+  padding:0 0 3rem;
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="strip">
+  <span id="strip-text">距离出发 <b>—</b> 天</span>
+  <button id="jump">跳到当前时刻</button>
+</div>
+
+<div class="scroll">
+<div class="wrap">
+
+  <header class="hero seg-day">
+    <p class="date">12月4日</p>
+    <p class="dow">金曜日・抵达日</p>
+    <h1 class="route">上海浦东 → 关西 → 京都</h1>
+    <p class="gist">下午几乎全归交通。真正的看点只有一个：天黑之后的东寺，五重塔的灯落在瓢箪池里。好处是东寺受付开到 21:00，航班晚两小时也救得回来。</p>
+  </header>
+
+  <div class="livewrap seg-day">
+    <div class="livehead">
+      <h3>行程地图</h3>
+      <div class="views">
+        <button id="v-kansai" aria-pressed="false">关西全域</button>
+        <button id="v-kyoto" aria-pressed="true">京都市内</button>
+      </div>
+    </div>
+    <div id="map" role="application" aria-label="12月4日行程地图"></div>
+    <details class="fallback">
+      <summary>没网络时看这个（手绘示意图）</summary>
+      <div class="maps" style="margin:1rem 0 0">
+    <div class="map">
+      <h3>关西全域 · HARUKA 80 分钟</h3>
+      <svg viewBox="0 0 220 170" role="img" aria-label="关西机场到京都的路线示意图">
+        <!-- 大阪湾 -->
+        <path d="M0 96 L26 88 L40 100 L34 118 L50 132 L44 170 L0 170 Z"
+              fill="#9FB4BE" opacity=".5"/>
+        <path d="M26 88 L40 100 L34 118 L50 132 L44 170"
+              fill="none" stroke="#6E8795" stroke-width="1" opacity=".6"/>
+        <!-- 铁路线 -->
+        <path d="M30 148 L48 128 L62 112 L86 86 L120 54 L150 38"
+              fill="none" stroke="#C8452E" stroke-width="2.2" stroke-linecap="round"/>
+        <g class="pin" data-k="kix">
+          <circle class="dot" cx="30" cy="148" r="5" fill="#1F2328"/>
+          <text x="38" y="158">関西空港 KIX</text>
+        </g>
+        <g class="pin">
+          <circle class="dot" cx="86" cy="86" r="3.4" fill="#4A5058" opacity=".8"/>
+          <text x="93" y="89" opacity=".7">大阪</text>
+        </g>
+        <g class="pin" data-k="kyoto2">
+          <circle class="dot" cx="150" cy="38" r="5" fill="#1F2328"/>
+          <text x="128" y="28">京都</text>
+        </g>
+        <text x="100" y="128" font-size="8.5" fill="#C8452E" font-weight="600">はるか</text>
+      </svg>
+    </div>
+
+    <div class="map">
+      <h3>京都市内 · 晚上的动线</h3>
+      <svg viewBox="0 0 220 170" role="img" aria-label="京都站、四条河原町、东寺的位置关系">
+        <!-- 鸭川 -->
+        <path d="M168 8 C162 44,158 76,150 112 C146 134,142 152,138 168"
+              fill="none" stroke="#9FB4BE" stroke-width="4" opacity=".65"/>
+        <text x="172" y="60" font-size="8" fill="#6E8795" opacity=".9">鴨川</text>
+        <!-- 乌丸线 -->
+        <path d="M96 20 L96 150" fill="none" stroke="#4A5058"
+              stroke-width="1.2" stroke-dasharray="4 3" opacity=".55"/>
+        <text x="60" y="26" font-size="7.5" fill="#4A5058" opacity=".75">烏丸線</text>
+        <!-- 动线：酒店 → 东寺 → 酒店 -->
+        <path d="M150 62 L104 118 L58 132" fill="none" stroke="#C8452E"
+              stroke-width="2" stroke-linecap="round"/>
+        <g class="pin" data-k="hotel">
+          <circle class="dot" cx="150" cy="62" r="5" fill="#1F2328"/>
+          <text x="156" y="58">四条河原町</text>
+        </g>
+        <g class="pin" data-k="kyoto2">
+          <circle class="dot" cx="104" cy="118" r="5" fill="#1F2328"/>
+          <text x="110" y="126">京都駅</text>
+        </g>
+        <g class="pin" data-k="toji">
+          <circle class="dot" cx="58" cy="132" r="5" fill="#1F2328"/>
+          <text x="18" y="146">東寺</text>
+        </g>
+      </svg>
+    </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="line seg-day">
+
+    <div class="stop" data-t="12:30" data-k="kix">
+      <div class="clock">12:30</div>
+      <div>
+        <h2>HO1505 落地关西机场</h2>
+        <p>第一航站楼（出发前再确认一次，偶有调整）。落地不等于出关——旺季入境审查排队 45–90 分钟很常见。</p>
+        <div class="meta"><span>上海浦东起飞</span><span>共享号 MU3959</span></div>
+      </div>
+    </div>
+
+    <div class="stop move" data-t="13:30">
+      <div class="clock">13:30<small>±30 分</small></div>
+      <div class="seg">
+        <h2>入境 · 取行李 · 走出到达大厅</h2>
+        <p>别按 13:00 出来规划，会失望。</p>
+      </div>
+    </div>
+
+    <div class="stop" data-t="13:45">
+      <div class="clock">13:45</div>
+      <div>
+        <h2>JR 服务台买 ICOCA &amp; HARUKA</h2>
+        <p>到达层连通桥过去就是。外国旅客限定套票，含一张 ICOCA 交通卡加 HARUKA 折扣票，比单买便宜。你们住四条，之后三天地铁巴士全靠刷这张卡。</p>
+        <div class="meta"><span>需出示护照</span><span>HARUKA 指定席约 ¥3,600</span></div>
+      </div>
+    </div>
+
+    <div class="stop move" data-t="14:16">
+      <div class="clock">14:16<small>或 14:46</small></div>
+      <div class="seg">
+        <h2>特急「はるか」→ 京都站</h2>
+        <p>75–80 分钟直达，全车指定席、有大件行李架。约每 30 分钟一班，赶不上这趟就下一趟。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="line seg-dusk" style="padding-top:0">
+    <div class="stop" data-t="15:35" data-k="kyoto2">
+      <div class="clock">15:35<small>–16:05</small></div>
+      <div>
+        <h2>抵达京都站</h2>
+        <p>出站直接打车去酒店，10–15 分钟、¥1,200–1,600。别坐地铁——乌丸线到四条站还要拖箱子走地面那段，两个人带行李不值得省这几百日元。</p>
+      </div>
+    </div>
+
+    <div class="stop" data-t="16:30" data-k="hotel">
+      <div class="clock">16:30</div>
+      <div>
+        <h2>入住 · 放行李 · 休息一小时</h2>
+        <p>这一小时是故意留的。飞了一上午，不缓一下晚上的点灯会变成煎熬。</p>
+        <div class="meta"><span>四条 / 河原町</span></div>
+      </div>
+    </div>
+
+    <div class="stop move" data-t="17:40">
+      <div class="clock">17:40</div>
+      <div class="seg">
+        <h2>打车去东寺</h2>
+        <p>从河原町约 15 分钟、¥1,500 上下。也可以坐乌丸线到京都站再走 15 分钟，但省下的钱不如换成看灯的时间。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="line seg-night" style="padding-top:0;padding-bottom:2.5rem">
+    <div class="stop" data-t="18:00" data-k="toji">
+      <div class="clock">18:00<small>–19:30</small></div>
+      <div>
+        <h2>東寺 · 境内点灯与夜间特别拜观</h2>
+        <div class="peak">
+          <svg viewBox="0 0 240 150" role="img" aria-label="五重塔与池中倒影示意">
+            <defs>
+              <radialGradient id="glow" cx="50%" cy="38%" r="52%">
+                <stop offset="0%" stop-color="#C8913C" stop-opacity=".5"/>
+                <stop offset="100%" stop-color="#C8913C" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="refl" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#C8913C" stop-opacity=".42"/>
+                <stop offset="100%" stop-color="#C8913C" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="240" height="150" fill="url(#glow)"/>
+            <g stroke="#C8913C" stroke-width="1.5" fill="none" stroke-linecap="round">
+              <!-- 塔身五重屋檐，自下而上收窄 -->
+              <path d="M120 96 L120 22"/>
+              <path d="M86 94 Q120 86 154 94"/>
+              <path d="M91 78 Q120 71 149 78"/>
+              <path d="M96 62 Q120 56 144 62"/>
+              <path d="M101 47 Q120 42 139 47"/>
+              <path d="M106 33 Q120 29 134 33"/>
+              <path d="M120 22 L120 12"/>
+              <circle cx="120" cy="9" r="2.4" fill="#C8913C" stroke="none"/>
+            </g>
+            <!-- 池面 -->
+            <line x1="26" y1="100" x2="214" y2="100" stroke="#C8913C"
+                  stroke-width=".7" opacity=".45"/>
+            <g opacity=".55">
+              <path d="M120 104 L120 140" stroke="url(#refl)" stroke-width="1.5"/>
+              <path d="M88 106 Q120 113 152 106" stroke="url(#refl)" stroke-width="1.2" fill="none"/>
+              <path d="M94 120 Q120 126 146 120" stroke="url(#refl)" stroke-width="1" fill="none"/>
+              <path d="M100 133 Q120 138 140 133" stroke="url(#refl)" stroke-width=".8" fill="none"/>
+            </g>
+          </svg>
+          <p>日本现存最高的木塔，54.8 米。看点是它在瓢箪池里的倒影配红叶。金堂、讲堂的夜间特别拜观一起看——讲堂里那组立体曼荼罗，21 尊佛像围成一个空间，夜里进去有压迫感。</p>
+        </div>
+        <div class="meta">
+          <span>2026/10/31–12/13</span>
+          <span>18:00–21:30</span>
+          <span>21:00 停止受付</span>
+          <span>无需预约，现场买票</span>
+        </div>
+        <a class="nav" href="https://www.google.com/maps/search/?api=1&amp;query=%E6%9D%B1%E5%AF%BA+%E4%BA%AC%E9%83%BD" target="_blank" rel="noopener">在地图中打开东寺</a>
+      </div>
+    </div>
+
+    <div class="stop move" data-t="19:45">
+      <div class="clock">19:45</div>
+      <div class="seg">
+        <h2>回河原町</h2>
+        <p>打车 15 分钟。</p>
+      </div>
+    </div>
+
+    <div class="stop" data-t="20:00" data-k="dinner">
+      <div class="clock">20:00</div>
+      <div>
+        <h2>晚饭 · 先斗町 / 木屋町</h2>
+        <p>就在酒店脚下，吃完走回去。12/4 是周五，先斗町的店当晚会满，有想吃的提前订。</p>
+      </div>
+    </div>
+
+    <div class="stop end" data-t="21:30">
+      <div class="clock">21:30</div>
+      <div>
+        <h2>回酒店</h2>
+        <p>明天 8:15 出门走东山线，圆光寺 9:00 的场次不能迟到。早点睡。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>这天要记住的几件事</h2>
+
+    <dl class="note">
+      <dt>容错很高</dt>
+      <dd>东寺 <b>21:00</b> 才停止受付。航班延误两小时、或者入境排队排崩了，晚上这项都还救得回来。最坏情况跳过东寺直接吃饭，损失可控——这就是我没把清水寺或东福寺夜场放在今天的原因，那些点灯人多、结束早，赶不上就白跑。</dd>
+    </dl>
+
+    <dl class="note">
+      <dt>打车叫车</dt>
+      <dd>装 <b>GO</b> 或 DiDi。京都红叶季在景点门口很难空手拦到车。</dd>
+    </dl>
+
+    <dl class="note">
+      <dt>ICOCA 后续</dt>
+      <dd>这张卡 12/5 东山线、12/6 岚山都要用，别弄丢。余额不够在任何地铁站都能充。</dd>
+    </dl>
+
+    <dl class="note" id="note-alt" data-k="alt">
+      <dt>备选</dt>
+      <dd>如果落地特别顺、16:00 前就到酒店，可以把东寺换成<b>青莲院</b>（从河原町打车 10 分钟），夜间点灯的竹林和庭园打光很特别，离住处近得多。但 2026 年点灯日程我没查到确切公布，临行前要确认，而且受付比东寺早结束。稳妥起见主方案还是东寺。</dd>
+    </dl>
+
+    <div class="alert">
+      <b>出发前必须核实两件事</b><br>
+      一、<b>圆光寺 12/5 的预约</b>——红叶最盛期（往年 11/10–12/10）是日时指定预约制，2025 年 10 月 20 日 9:00 开放受付，2026 预计 10 月中下旬，开放当天就要订，热门场次会满。<br>
+      二、<b>12/7 返程航班的起飞时间</b>——你记的 19:00，但我查到 HO1506 近期实际是 13:07 左右起飞。这两个时间导出的 12/7 完全不同（13:07 的话上午没有观光空间），翻一下订单确认。
+    </div>
+  </div>
+
+  <footer>
+    行程信息来自各寺院官网及京都市观光 Navi，2026 年日程以官方最新公布为准。<br>
+    12 月初已过京都红叶峰值，预期是「散り紅葉」落叶毯而非盛红。
+  </footer>
+
+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+  "use strict";
+  var TRIP = new Date(2026, 11, 4);           // 12/4 当地日
+  var stops = Array.prototype.slice.call(document.querySelectorAll(".stop[data-t]"));
+  var pins  = Array.prototype.slice.call(document.querySelectorAll(".pin[data-k]"));
+
+  // 分钟数，用于和当前时刻比对
+  stops.forEach(function(s){
+    var p = s.dataset.t.split(":");
+    s._min = (+p[0]) * 60 + (+p[1]);
+  });
+
+  /* ---- 地点数据 ---- */
+  var PLACES = {
+    kix:    {n:1, ll:[34.4347,135.2440], name:"関西国際空港",   t:"12:30 落地",      q:"関西国際空港"},
+    kyoto2: {n:2, ll:[34.9858,135.7588], name:"京都駅",         t:"15:35 抵达",      q:"京都駅"},
+    hotel:  {n:3, ll:[35.0037,135.7690], name:"四条河原町",     t:"16:30 入住",      q:"四条河原町"},
+    toji:   {n:4, ll:[34.9810,135.7477], name:"東寺",           t:"18:00 点灯",      q:"東寺 京都"},
+    dinner: {n:5, ll:[35.0048,135.7706], name:"先斗町",         t:"20:00 晚饭",      q:"先斗町"},
+    alt:    {n:"替", ll:[35.0065,135.7855], name:"青蓮院",      t:"备选点灯",        q:"青蓮院 京都", alt:true}
+  };
+  /* HARUKA 走行示意（経由 日根野・天王寺・新大阪） */
+  var HARUKA = [[34.4347,135.2440],[34.4007,135.3133],[34.6465,135.5133],
+                [34.7332,135.5003],[34.9858,135.7588]];
+  var EVENING = [[35.0037,135.7690],[34.9810,135.7477],[35.0048,135.7706]];
+
+  var VIEW = {
+    kansai: {b:[[34.38,135.18],[35.06,135.82]], pad:[24,24]},
+    kyoto:  {b:[[34.972,135.736],[35.012,135.792]], pad:[30,30]}
+  };
+
+  var map = null, marks = {}, curKey = null;
+
+  function mkIcon(p, on){
+    return L.divIcon({
+      className: "", iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-13],
+      html: '<div class="mk' + (p.alt ? " alt" : "") + (on ? " on" : "") + '">' + p.n + '</div>'
+    });
+  }
+
+  function highlight(key){
+    // 手绘图（fallback）里的点
+    pins.forEach(function(p){ p.classList.toggle("on", p.dataset.k === key); });
+    if (!map) return;
+    if (curKey && marks[curKey]) marks[curKey].setIcon(mkIcon(PLACES[curKey], false));
+    if (key && marks[key])      marks[key].setIcon(mkIcon(PLACES[key], true));
+    curKey = key;
+  }
+
+  function setView(which, animate){
+    if (!map) return;
+    var v = VIEW[which];
+    map.flyToBounds(v.b, {padding:v.pad, duration: animate ? .8 : 0});
+    document.getElementById("v-kansai").setAttribute("aria-pressed", which === "kansai");
+    document.getElementById("v-kyoto").setAttribute("aria-pressed", which === "kyoto");
+  }
+
+  function buildMap(){
+    if (typeof L === "undefined") return false;   // CDN 没加载到就留在 fallback
+    map = L.map("map", {scrollWheelZoom:false, zoomControl:true});
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom:19, subdomains:"abcd",
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+
+    L.polyline(HARUKA, {color:"#C8452E", weight:2.5, opacity:.85,
+      lineCap:"round"}).addTo(map)
+      .bindPopup('<b>特急はるか</b><span class="t">75–80 分钟 · 線形为示意</span>');
+    L.polyline(EVENING, {color:"#C8913C", weight:2.5, opacity:.9, lineCap:"round"}).addTo(map)
+      .bindPopup('<b>晚上的动线</b><span class="t">酒店 → 東寺 → 先斗町</span>');
+
+    Object.keys(PLACES).forEach(function(k){
+      var p = PLACES[k];
+      var m = L.marker(p.ll, {icon:mkIcon(p,false), title:p.name, keyboard:true}).addTo(map);
+      m.bindPopup('<b>' + p.name + '</b><span class="t">' + p.t + '</span><br>' +
+        '<a href="https://www.google.com/maps/search/?api=1&query=' +
+        encodeURIComponent(p.q) + '" target="_blank" rel="noopener">在 Google Maps 打开</a>');
+      m.on("click", function(){
+        highlight(k);
+        // 青莲院只在「备选」说明里，没有时间线条目
+        var hit = stops.filter(function(s){ return s.dataset.k === k; })[0]
+               || document.querySelector('[data-k="' + k + '"].note');
+        if (hit) hit.scrollIntoView({behavior:"smooth", block:"center"});
+      });
+      marks[k] = m;
+    });
+
+    setView("kyoto", false);
+    document.getElementById("v-kansai").onclick = function(){ setView("kansai", true); };
+    document.getElementById("v-kyoto").onclick  = function(){ setView("kyoto", true); };
+    return true;
+  }
+
+  var live = buildMap();
+
+  /* 手绘图的点也能点（没网时用） */
+  pins.forEach(function(p){
+    p.setAttribute("tabindex", "0");
+    p.setAttribute("role", "button");
+    function go(){
+      var k = p.dataset.k;
+      var hit = stops.filter(function(s){ return s.dataset.k === k; })[0];
+      highlight(k);
+      if (hit) hit.scrollIntoView({behavior:"smooth", block:"center"});
+    }
+    p.addEventListener("click", go);
+    p.addEventListener("keydown", function(e){
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+    });
+  });
+
+  /* 滚动时点亮对应标记，并在跨区时自动切换视野 */
+  if ("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting || !en.target.dataset.k) return;
+        var k = en.target.dataset.k;
+        highlight(k);
+        if (live && k === "kix") setView("kansai", true);
+        if (live && k === "toji") setView("kyoto", true);
+      });
+    }, {rootMargin:"-45% 0px -45% 0px"});
+    stops.forEach(function(s){ if (s.dataset.k) io.observe(s); });
+  }
+
+  /* 顶部状态条：出发前倒计时，当天切成实时定位 */
+  var now   = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var days  = Math.round((TRIP - today) / 86400000);
+  var txt   = document.getElementById("strip-text");
+  var btn   = document.getElementById("jump");
+  var isToday = days === 0;
+
+  if (isToday){
+    var mins = now.getHours() * 60 + now.getMinutes();
+    var cur = null;
+    stops.forEach(function(s){ if (s._min <= mins) cur = s; });
+    txt.innerHTML = cur
+      ? '当前应在 <b>' + cur.dataset.t + ' ' + cur.querySelector("h2").textContent + '</b>'
+      : '今天出发 · 行程 <b>12:30</b> 开始';
+    btn.textContent = "跳到当前时刻";
+    btn.onclick = function(){
+      (cur || stops[0]).scrollIntoView({behavior:"smooth", block:"center"});
+    };
+  } else if (days > 0){
+    txt.innerHTML = '距离 12/4 出发还有 <b>' + days + '</b> 天';
+    btn.textContent = "看东寺那段";
+    btn.onclick = function(){
+      document.querySelector('[data-k="toji"]').scrollIntoView({behavior:"smooth", block:"center"});
+    };
+  } else {
+    txt.innerHTML = '行程已结束 · <b>12月4日</b>';
+    btn.textContent = "回到开头";
+    btn.onclick = function(){ window.scrollTo({top:0, behavior:"smooth"}); };
+  }
+})();
+</script>
+</body>
+</html>
