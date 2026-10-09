@@ -178,6 +178,7 @@ body{
   box-shadow:0 1px 4px rgba(0,0,0,.45);
 }
 .mk.alt{background:var(--hatoba);border-style:dashed}
+.osm-dim{filter:brightness(.78) saturate(.7)}
 .mk.on{background:var(--kincha);transform:scale(1.25)}
 .fallback{font-size:.82rem;color:var(--ink-soft);margin:.5rem 0 0}
 .fallback summary{cursor:pointer}
@@ -616,7 +617,9 @@ footer{
   function setView(which, animate){
     if (!map) return;
     var v = VIEW[which];
-    map.flyToBounds(v.b, {padding:v.pad, duration: animate ? .8 : 0});
+    // [DECISION] 首次定位必须用 fitBounds：flyTo 需要已有中心点，空地图上调用会抛错
+    if (animate) map.flyToBounds(v.b, {padding:v.pad, duration:.8});
+    else         map.fitBounds(v.b, {padding:v.pad, animate:false});
     document.getElementById("v-kansai").setAttribute("aria-pressed", which === "kansai");
     document.getElementById("v-kyoto").setAttribute("aria-pressed", which === "kyoto");
   }
@@ -624,10 +627,24 @@ footer{
   function buildMap(){
     if (typeof L === "undefined") return false;   // CDN 没加载到就留在 fallback
     map = L.map("map", {scrollWheelZoom:false, zoomControl:true});
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    map.fitBounds(VIEW.kyoto.b, {padding:VIEW.kyoto.pad, animate:false});
+
+    var OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    var dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom:19, subdomains:"abcd",
-      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }).addTo(map);
+
+    // CARTO 连续失败 → 换 OSM 官方瓦片（亮色，调暗一点贴合页面）
+    var fails = 0, swapped = false;
+    dark.on("tileerror", function(){
+      if (swapped || ++fails < 4) return;
+      swapped = true;
+      map.removeLayer(dark);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom:19, attribution: OSM_ATTR, className:"osm-dim"
+      }).addTo(map);
+    });
 
     L.polyline(HARUKA, {color:"#C8452E", weight:2.5, opacity:.85,
       lineCap:"round"}).addTo(map)
@@ -657,7 +674,17 @@ footer{
     return true;
   }
 
-  var live = buildMap();
+  // 地图出错不能连带倒计时、联动等其它功能
+  var live = false;
+  try { live = buildMap(); }
+  catch (err) { console.error("[map]", err); map = null; }
+  if (!live){
+    document.getElementById("map").style.display = "none";
+    document.querySelector(".views").style.display = "none";
+    var fb = document.querySelector(".fallback");
+    fb.open = true;
+    fb.querySelector("summary").textContent = "实时地图加载失败，显示手绘示意图";
+  }
 
   /* 手绘图的点也能点（没网时用） */
   pins.forEach(function(p){
