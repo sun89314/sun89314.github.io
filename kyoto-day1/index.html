@@ -178,7 +178,8 @@ body{
   box-shadow:0 1px 4px rgba(0,0,0,.45);
 }
 .mk.alt{background:var(--hatoba);border-style:dashed}
-.osm-dim{filter:brightness(.78) saturate(.7)}
+/* 亮色 OSM 瓦片 → 深色：反色后转回色相，再压亮度贴合藏青 */
+.osm-dark{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.55)}
 .mk.on{background:var(--kincha);transform:scale(1.25)}
 .fallback{font-size:.82rem;color:var(--ink-soft);margin:.5rem 0 0}
 .fallback summary{cursor:pointer}
@@ -629,22 +630,12 @@ footer{
     map = L.map("map", {scrollWheelZoom:false, zoomControl:true});
     map.fitBounds(VIEW.kyoto.b, {padding:VIEW.kyoto.pad, animate:false});
 
-    var OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-    var dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom:19, subdomains:"abcd",
-      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    // [DECISION] OSM 官方瓦片（免 key）。CARTO 自 2026/08 起无 key 返回水印图且 HTTP 200，不可用
+    // 深色效果靠 CSS 反色滤镜实现，见 .osm-dark
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom:19, className:"osm-dark",
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
-
-    // CARTO 连续失败 → 换 OSM 官方瓦片（亮色，调暗一点贴合页面）
-    var fails = 0, swapped = false;
-    dark.on("tileerror", function(){
-      if (swapped || ++fails < 4) return;
-      swapped = true;
-      map.removeLayer(dark);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom:19, attribution: OSM_ATTR, className:"osm-dim"
-      }).addTo(map);
-    });
 
     L.polyline(HARUKA, {color:"#C8452E", weight:2.5, opacity:.85,
       lineCap:"round"}).addTo(map)
